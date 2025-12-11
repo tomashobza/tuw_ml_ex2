@@ -15,14 +15,20 @@ class RegressionTree:
         print(self._find_best_split(X,y))
         
     
+    
+    
+    
     # TODO add random subset of features selection ?
+    # TODO selection based on MAE
     def _find_best_split(self, X, y):
         num_samples, num_features = X.shape
         
+        if num_samples < 2:
+                return None, None, None, None, None, None, None
+            
         best_feature_idx = None
         best_threshold = None
         best_min_mse = float('inf')
-        best_split_idx = None
         
         for feature_idx in range(num_features):
             
@@ -31,11 +37,13 @@ class RegressionTree:
             
             X_sorted = X[sorted_idx]
             y_sorted = y[sorted_idx]
-           # y_sorted = [1,2,3,4,5,6,7,8,9,10]
-            y_sorted = np.array(y_sorted)
+            feature_sorted = feature[sorted_idx]
+
+            valid = feature_sorted[1:] != feature_sorted[:-1]
+            if not valid.any():
+                continue
             
-            if num_samples < 2:
-                return None, None, None
+            y_sorted = np.array(y_sorted)
             
             cum_sum = np.cumsum(y_sorted)
             total_sum = cum_sum[-1]
@@ -44,7 +52,7 @@ class RegressionTree:
             sums_right = total_sum - sums_left
             
             counts_left = np.arange(1, num_samples)
-            counts_right = counts_left[::-1]
+            counts_right = num_samples - counts_left
             
             averages_left = sums_left / counts_left # y_i_hat (estimates)
             averages_right = sums_right / counts_right
@@ -62,6 +70,7 @@ class RegressionTree:
             sse_right = squared_sums_right - counts_right * averages_right**2
             
             total_mse = (sse_left + sse_right) / num_samples
+            total_mse = total_mse[valid]
             
             min_mse_current = min(total_mse)
             
@@ -70,14 +79,30 @@ class RegressionTree:
                 min_mse_idx = np.argmin(total_mse)
                 best_feature_idx = feature_idx
                 
-                x_prev = X_sorted[:-1, 0]
-                x_next = X_sorted[1:, 0]
+                x_prev = X_sorted[:-1, feature_idx]
+                x_next = X_sorted[1:, feature_idx]
                 thresholds = (x_prev + x_next) / 2.0
+                thresholds = thresholds[valid]
+                
                 best_threshold = thresholds[min_mse_idx]
                 
-                best_split_idx = min_mse_idx
-                
-            return best_feature_idx, best_threshold, best_split_idx
+        if best_feature_idx is None:
+            return None, None, None, None, None, None, None
+        
+        X_left = X[X[:, best_feature_idx] <= best_threshold]
+        y_left = y[X[:, best_feature_idx] <= best_threshold]
+        
+        X_right = X[X[:, best_feature_idx] > best_threshold]
+        y_right = y[X[:, best_feature_idx] > best_threshold]
+        
+        return (
+            best_feature_idx, 
+            best_threshold, 
+            X_left, 
+            y_left, 
+            X_right, 
+            y_right
+        )
     
         
         
