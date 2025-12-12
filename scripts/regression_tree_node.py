@@ -6,4 +6,4 @@ class RegressionTreeNode:
         self.right_child = right
         self.left_child = left
         self.value = value
-        self.feature = feature_index
+        self.feature_idx = feature_index
