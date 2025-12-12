@@ -5,6 +5,7 @@ from sklearn.metrics import r2_score
 import pandas as pd
 import numpy as np
 import time
+from sklearn.model_selection import train_test_split
 
 from regression_tree_node import RegressionTreeNode
 
@@ -59,15 +60,19 @@ class RegressionTree:
         best_threshold = None
         best_min_mse = float('inf')
         
+        counts_left = np.arange(1, num_samples)
+        counts_right = num_samples - counts_left
+        
         for feature_idx in range(num_features):
             
             feature = X[:, feature_idx] 
             sorted_idx = np.argsort(feature)
             
-            X_sorted = X[sorted_idx]
+           # X_sorted = X[sorted_idx]
             y_sorted = y[sorted_idx]
             feature_sorted = feature[sorted_idx]
 
+            # handling identical values
             valid = feature_sorted[1:] != feature_sorted[:-1]
             if not valid.any():
                 continue
@@ -77,9 +82,6 @@ class RegressionTree:
             
             sums_left = cum_sum[:-1]
             sums_right = total_sum - sums_left
-            
-            counts_left = np.arange(1, num_samples)
-            counts_right = num_samples - counts_left
             
             averages_left = sums_left / counts_left # y_i_hat (estimates)
             averages_right = sums_right / counts_right
@@ -99,7 +101,7 @@ class RegressionTree:
             total_mse = (sse_left + sse_right) / num_samples
             total_mse = total_mse[valid]
             
-            min_mse_current = min(total_mse)
+            min_mse_current = np.min(total_mse)
             
             # picking the first best feature
             if min_mse_current < best_min_mse:
@@ -109,8 +111,8 @@ class RegressionTree:
                 min_mse_idx = np.argmin(total_mse)
                 best_feature_idx = feature_idx
                 
-                x_prev = X_sorted[:-1, feature_idx]
-                x_next = X_sorted[1:, feature_idx]
+                x_prev = feature_sorted[:-1]
+                x_next = feature_sorted[1:]
                 thresholds = (x_prev + x_next) / 2.0
                 thresholds = thresholds[valid]
                 
@@ -119,11 +121,13 @@ class RegressionTree:
         if best_feature_idx is None:
             return None, None, None, None, None, None, None
         
-        X_left = X[X[:, best_feature_idx] <= best_threshold]
-        y_left = y[X[:, best_feature_idx] <= best_threshold]
+        mask = X[:, best_feature_idx] <= best_threshold
         
-        X_right = X[X[:, best_feature_idx] > best_threshold]
-        y_right = y[X[:, best_feature_idx] > best_threshold]
+        X_left = X[mask]
+        y_left = y[mask]
+
+        X_right = X[~mask]
+        y_right = y[~mask]
         
         return (
             best_feature_idx, 
