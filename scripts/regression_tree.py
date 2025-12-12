@@ -10,11 +10,13 @@ from sklearn.model_selection import train_test_split
 from regression_tree_node import RegressionTreeNode
 
 class RegressionTree:
-    def __init__(self, min_samples_split=2):
+    def __init__(self, min_samples_split=2, max_depth=None, min_samples_leaf=1):
         self._tree = None
         self._feature_names = list()
         
         self.min_sample_split = min_samples_split
+        self.max_depth = max_depth
+        self.min_samples_leaf = min_samples_leaf
     
     def fit(self, X, y):
         if hasattr(X, "columns"):
@@ -27,10 +29,14 @@ class RegressionTree:
         X = np.array(X)
         y = np.array(y)
         
-        self._tree = self._build_tree(X, y)
+        self._tree = self._build_tree(X, y, 0)
     
-    def _build_tree(self, X, y):
+    def _build_tree(self, X, y, depth_curr):
         num_samples = X.shape[0]
+        
+        if self.max_depth is not None and depth_curr >= self.max_depth:
+            leaf_value = np.mean(y)
+            return RegressionTreeNode(value=leaf_value)
         
         if num_samples < self.min_sample_split:
             leaf_value = np.mean(y)
@@ -38,8 +44,13 @@ class RegressionTree:
         
         feature_idx, threshold, X_left, y_left, X_right, y_right = self._find_best_split(X,y)
         
-        left_child = self._build_tree(X_left, y_left)
-        right_child = self._build_tree(X_right, y_right)
+        # no split found
+        if feature_idx is None:
+            leaf_value = np.mean(y)
+            return RegressionTreeNode(value=leaf_value)
+        
+        left_child = self._build_tree(X_left, y_left, depth_curr + 1)
+        right_child = self._build_tree(X_right, y_right,  depth_curr + 1)
 
         return RegressionTreeNode(
             threshold=threshold,
@@ -54,7 +65,7 @@ class RegressionTree:
         num_samples, num_features = X.shape
         
         if num_samples < 2:
-                return None, None, None, None, None, None, None
+                return None, None, None, None, None, None
             
         best_feature_idx = None
         best_threshold = None
@@ -72,8 +83,11 @@ class RegressionTree:
             y_sorted = y[sorted_idx]
             feature_sorted = feature[sorted_idx]
 
-            # handling identical values
-            valid = feature_sorted[1:] != feature_sorted[:-1]
+            # handling identical values + leaf sizes
+            valid_splits = feature_sorted[1:] != feature_sorted[:-1]
+            valid_leaf_sizes = (counts_left >= self.min_samples_leaf) & (counts_right >= self.min_samples_leaf)
+            
+            valid = valid_splits & valid_leaf_sizes
             if not valid.any():
                 continue
             
@@ -119,7 +133,7 @@ class RegressionTree:
                 best_threshold = thresholds[min_mse_idx]
                 
         if best_feature_idx is None:
-            return None, None, None, None, None, None, None
+            return None, None, None, None, None, None
         
         mask = X[:, best_feature_idx] <= best_threshold
         
@@ -166,11 +180,5 @@ class RegressionTree:
     def score(self, X, y):
         y_pred = self.predict(X)
         return r2_score(y, y_pred)
-        
-if __name__ == "__main__":
-    X, y = make_regression(n_samples=100, n_features=10, noise=0.5, random_state=42)
-    tree = RegressionTree(min_samples_split=4)
-    tree.fit(X,y)
-    tree.predict(X)
-
+    
    
