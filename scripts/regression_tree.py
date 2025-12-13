@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-from sklearn.datasets import make_regression
-from sklearn.tree import DecisionTreeRegressor
 from sklearn.metrics import r2_score
 import pandas as pd
 import numpy as np
 import time
-from sklearn.model_selection import train_test_split
 
 from scripts.regression_tree_node import RegressionTreeNode
 
