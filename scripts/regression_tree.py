@@ -8,27 +8,49 @@ from scripts.regression_tree_node import RegressionTreeNode
 
 
 class RegressionTree:
-    def __init__(self, min_samples_split=2, max_depth=None, min_samples_leaf=1):
+    def __init__(
+        self,
+        min_samples_split=2,
+        max_depth=None,
+        min_samples_leaf=1,
+        max_features=None,
+        random_state=None,
+    ):
         self._tree = None
         self._feature_names = list()
 
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
+        self.random_state = random_state
+
+        # initialize random number generator
+        self._rng = np.random.RandomState(random_state)
 
     def get_params(self, deep=True):
         return {
             "min_samples_split": self.min_samples_split,
             "max_depth": self.max_depth,
             "min_samples_leaf": self.min_samples_leaf,
+            "max_features": self.max_features,
+            "random_state": self.random_state,
         }
 
     def set_params(self, **params):
         for key, value in params.items():
             setattr(self, key, value)
+
+        # re-initialize RNG if random_state was changed
+        if "random_state" in params:
+            self._rng = np.random.RandomState(self.random_state)
+
         return self
 
     def fit(self, X, y):
+        # reset RNG at start of fit for reproducibility
+        self._rng = np.random.RandomState(self.random_state)
+
         if hasattr(X, "columns"):
             self._feature_names = list(X.columns)
         else:
@@ -71,7 +93,6 @@ class RegressionTree:
             left=left_child,
         )
 
-    # TODO add random subset of features selection ?
     # TODO selection based on MAE
     def _find_best_split(self, X, y):
         num_samples, num_features = X.shape
@@ -86,7 +107,20 @@ class RegressionTree:
         counts_left = np.arange(1, num_samples)
         counts_right = num_samples - counts_left
 
-        for feature_idx in range(num_features):
+        # if max_features is set, select a random subset of features
+        feature_indices = range(num_features)
+        if self.max_features is not None:
+            if isinstance(self.max_features, int):
+                feature_indices = self._rng.choice(
+                    num_features, self.max_features, replace=False
+                )
+            elif isinstance(self.max_features, float):
+                max_features_int = int(self.max_features * num_features)
+                feature_indices = self._rng.choice(
+                    num_features, max_features_int, replace=False
+                )
+
+        for feature_idx in feature_indices:
 
             feature = X[:, feature_idx]
             sorted_idx = np.argsort(feature)
