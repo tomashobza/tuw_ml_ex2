@@ -2,7 +2,7 @@
 from sklearn.metrics import r2_score
 import numpy as np
 
-from scripts.regression_tree_node import RegressionTreeNode
+from regression_tree_node import RegressionTreeNode
 
 
 class RegressionTree:

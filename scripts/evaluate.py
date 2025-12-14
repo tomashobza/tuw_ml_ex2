@@ -5,16 +5,27 @@ from xgboost import XGBRegressor
 import time
 import tracemalloc
 from regression_tree import RegressionTree as our_regression_tree
+from regression_random_forest import RandomForestRegressor as our_random_forest
 import os
 
 # load datasets
-df_paths = [os.path.join("../data", f) for f in os.listdir("../data") if f.endswith("_processed.csv")]
+df_paths = [os.path.join("data", f) for f in os.listdir("data") if f.endswith("_processed.csv")]
 
 # define param grids
-our_grid = {
+our_tree_grid = {
     'min_samples_split': [2, 5, 10],
     'max_depth': [None, 5, 10, 20],
     'min_samples_leaf': [1, 2, 4]
+}
+
+our_forest_grid = {
+    'n_estimators': [50, 100],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1],
+    'max_features': [None, 'sqrt', 'log2'],
+    'bootstrap': [True, False],
+    'random_state': [42],
 }
 
 sklearn_tree_grid = {
@@ -38,10 +49,11 @@ xgb_grid = {
 
 # estimators and their grids
 estimators = [
-    (our_regression_tree(), our_grid, "Our_RegressionTree"),
+    (our_random_forest(), our_forest_grid, "Our_RandomForest"),
+    (our_regression_tree(), our_tree_grid, "Our_RegressionTree"),
     (sk.tree.DecisionTreeRegressor(), sklearn_tree_grid, "sklearn_DecisionTree"),
     (sk.ensemble.RandomForestRegressor(), sklearn_rf_grid, "sklearn_RandomForest"),
-    (XGBRegressor(), xgb_grid, "XGBoost")
+    (XGBRegressor(), xgb_grid, "XGBoost"),
 ]
 
 def load_data(df_path):

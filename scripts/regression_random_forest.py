@@ -1,7 +1,7 @@
 from sklearn.ensemble import RandomForestRegressor as SklearnRandomForestRegressor
 from sklearn.metrics import r2_score
 import numpy as np
-from scripts.regression_tree import RegressionTree
+from regression_tree import RegressionTree
 
 
 class RandomForestRegressor:
