@@ -29,6 +29,9 @@ class RandomForestRegressor:
         self._rng = np.random.RandomState(random_state)
 
     def fit(self, X, y, sample_weight=None):
+        # reset RNG at start of fit for reproducibility
+        self._rng = np.random.RandomState(self.random_state)
+
         # convert to numpy arrays
         X = np.array(X)
         y = np.array(y)
