@@ -25,6 +25,9 @@ class RandomForestRegressor:
 
         self.estimators = None
 
+        # intialize random number generator
+        self._rng = np.random.RandomState(random_state)
+
     def fit(self, X, y, sample_weight=None):
         # convert to numpy arrays
         X = np.array(X)
@@ -72,7 +75,8 @@ class RandomForestRegressor:
         return np.mean(predictions, axis=0)
 
     def score(self, X, y, sample_weight=None):
-        return self.polyfill.score(X, y, sample_weight=sample_weight)
+        y_pred = self.predict(X)
+        return r2_score(y, y_pred, sample_weight=sample_weight)
 
     def get_params(self, deep=True):
         return {
