@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from sklearn.metrics import r2_score
-import pandas as pd
 import numpy as np
-import time
 
 from scripts.regression_tree_node import RegressionTreeNode
 
@@ -16,9 +14,13 @@ class RegressionTree:
         max_features=None,
         random_state=None,
     ):
+        # root of the tree
         self._tree = None
+        
+        # feature names used to preserve column order
         self._feature_names = list()
 
+        # hyperparameters controlling tree growth
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
@@ -51,6 +53,7 @@ class RegressionTree:
         # reset RNG at start of fit for reproducibility
         self._rng = np.random.RandomState(self.random_state)
 
+        # store feature names if input is a pandas dataframe
         if hasattr(X, "columns"):
             self._feature_names = list(X.columns)
         else:
@@ -78,7 +81,7 @@ class RegressionTree:
             self._find_best_split(X, y)
         )
 
-        # no split found
+        # no valid split found
         if feature_idx is None:
             leaf_value = np.mean(y)
             return RegressionTreeNode(value=leaf_value)
@@ -93,7 +96,6 @@ class RegressionTree:
             left=left_child,
         )
 
-    # TODO selection based on MAE
     def _find_best_split(self, X, y):
         num_samples, num_features = X.shape
 
@@ -104,6 +106,7 @@ class RegressionTree:
         best_threshold = None
         best_min_mse = float("inf")
 
+        # precompute possible left and right sizes
         counts_left = np.arange(1, num_samples)
         counts_right = num_samples - counts_left
 
@@ -122,14 +125,13 @@ class RegressionTree:
 
         for feature_idx in feature_indices:
 
+            # sort samples by current feature
             feature = X[:, feature_idx]
             sorted_idx = np.argsort(feature)
-
-            # X_sorted = X[sorted_idx]
             y_sorted = y[sorted_idx]
             feature_sorted = feature[sorted_idx]
 
-            # handling identical values + leaf sizes
+            # determine valid split points
             valid_splits = feature_sorted[1:] != feature_sorted[:-1]
             valid_leaf_sizes = (counts_left >= self.min_samples_leaf) & (
                 counts_right >= self.min_samples_leaf
@@ -139,6 +141,7 @@ class RegressionTree:
             if not valid.any():
                 continue
 
+            # cumulative sums for efficient mean computation
             cum_sum = np.cumsum(y_sorted)
             total_sum = cum_sum[-1]
 
@@ -148,7 +151,7 @@ class RegressionTree:
             averages_left = sums_left / counts_left  # y_i_hat (estimates)
             averages_right = sums_right / counts_right
 
-            # compute MSE
+            # compute cumulative sums of squares
             y_squared = y_sorted**2  # y_i^2 (real)
             cum_sum_squared = np.cumsum(y_squared)
             total_squared_sum = cum_sum_squared[-1]
@@ -156,10 +159,12 @@ class RegressionTree:
             squared_sums_left = cum_sum_squared[:-1]
             squared_sums_right = total_squared_sum - squared_sums_left
 
+            # compute sum of squared errors for each split
             # sum(y_i - y_i_hat)^2 = sum(y_i^2 - y_i_hat^2) = sum(y_i^2 - n*average^2)
             sse_left = squared_sums_left - counts_left * averages_left**2
             sse_right = squared_sums_right - counts_right * averages_right**2
 
+            # compute mean squared error
             total_mse = (sse_left + sse_right) / num_samples
             total_mse = total_mse[valid]
 
@@ -168,11 +173,10 @@ class RegressionTree:
             # picking the first best feature
             if min_mse_current < best_min_mse:
                 best_min_mse = min_mse_current
-
-                # picking the first occurence of min MSE
                 min_mse_idx = np.argmin(total_mse)
                 best_feature_idx = feature_idx
 
+                # compute candidate thresholds
                 x_prev = feature_sorted[:-1]
                 x_next = feature_sorted[1:]
                 thresholds = (x_prev + x_next) / 2.0
@@ -183,6 +187,7 @@ class RegressionTree:
         if best_feature_idx is None:
             return None, None, None, None, None, None
 
+        # split the data using the best feature and threshold
         mask = X[:, best_feature_idx] <= best_threshold
 
         X_left = X[mask]
@@ -194,7 +199,7 @@ class RegressionTree:
         return (best_feature_idx, best_threshold, X_left, y_left, X_right, y_right)
 
     def predict(self, X):
-        # ensure right column order
+        # ensure right column order for pandas input
         if hasattr(X, "columns"):
             if set(X.columns) == set(self._feature_names):
                 X = X[self._feature_names]
@@ -205,7 +210,6 @@ class RegressionTree:
         X = np.array(X)
 
         predictions = np.array([self._predict_single_row(x, self._tree) for x in X])
-        # print(f"predicted:", predictions)
         return predictions
 
     def _predict_single_row(self, x, node):
