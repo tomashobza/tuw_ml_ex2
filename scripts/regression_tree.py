@@ -16,7 +16,7 @@ class RegressionTree:
     ):
         # root of the tree
         self._tree = None
-        
+
         # feature names used to preserve column order
         self._feature_names = list()
 
@@ -113,7 +113,17 @@ class RegressionTree:
         # if max_features is set, select a random subset of features
         feature_indices = range(num_features)
         if self.max_features is not None:
-            if isinstance(self.max_features, int):
+            if isinstance(self.max_features, str):
+                if self.max_features == "sqrt":
+                    max_features_int = max(1, int(np.sqrt(num_features)))
+                elif self.max_features == "log2":
+                    max_features_int = max(1, int(np.log2(num_features)))
+                else:
+                    raise ValueError(f"Invalid max_features: {self.max_features}")
+                feature_indices = self._rng.choice(
+                    num_features, max_features_int, replace=False
+                )
+            elif isinstance(self.max_features, int):
                 feature_indices = self._rng.choice(
                     num_features, self.max_features, replace=False
                 )
