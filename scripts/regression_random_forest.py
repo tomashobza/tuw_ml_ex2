@@ -15,18 +15,6 @@ class RandomForestRegressor:
         bootstrap=True,
         random_state=None,
     ):
-        # self.polyfill = SklearnRandomForestRegressor(
-        #     n_estimators=self.n_estimators,
-        #     max_depth=self.max_depth,
-        #     min_samples_split=self.min_samples_split,
-        #     min_samples_leaf=self.min_samples_leaf,
-        #     max_features=self.max_features,
-        #     bootstrap=self.bootstrap,
-        #     random_state=self.random_state,
-        #     criterion=self.criterion,
-        #     max_samples=self.max_samples,
-        # )
-
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
@@ -46,8 +34,6 @@ class RandomForestRegressor:
         self.estimators = []
 
         # create N decision trees
-        # for each bootstrap the data and fit a decision tree on it
-
         for i in range(self.n_estimators):
             X_bootstrap = X
             y_bootstrap = y
@@ -79,10 +65,31 @@ class RandomForestRegressor:
         if self.estimators is None:
             raise Exception("Model not fitted yet.")
 
-        # run each tree's predict and average the results
+        # get predictions from all trees
+        predictions = np.array([tree.predict(X) for tree in self.estimators])
 
-        return
-        # return self.polyfill.predict(X)
+        # average the predictions
+        return np.mean(predictions, axis=0)
 
     def score(self, X, y, sample_weight=None):
         return self.polyfill.score(X, y, sample_weight=sample_weight)
+
+    def get_params(self, deep=True):
+        return {
+            "n_estimators": self.n_estimators,
+            "max_depth": self.max_depth,
+            "min_samples_split": self.min_samples_split,
+            "min_samples_leaf": self.min_samples_leaf,
+            "max_features": self.max_features,
+            "bootstrap": self.bootstrap,
+            "random_state": self.random_state,
+        }
+
+    def set_params(self, **params):
+        for key, value in params.items():
+            setattr(self, key, value)
+
+        if "random_state" in params:
+            self._rng = np.random.RandomState(self.random_state)
+
+        return self
