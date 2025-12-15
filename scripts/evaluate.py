@@ -1,6 +1,7 @@
 import pandas as pd
+import numpy as np
 import sklearn as sk
-from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
+from sklearn.model_selection import GridSearchCV, cross_val_score, KFold, cross_validate
 from xgboost import XGBRegressor
 import time
 import tracemalloc
@@ -12,48 +13,39 @@ import os
 df_paths = [os.path.join("data", f) for f in os.listdir("data") if f.endswith("_processed.csv")]
 
 # define param grids
+# our_tree_grid = None
+
 our_tree_grid = {
     'min_samples_split': [2, 5, 10],
-    'max_depth': [None, 5, 10, 20],
-    'min_samples_leaf': [1, 2, 4]
+    # 'max_depth': [None, 5, 10, 20],
+    # 'min_samples_leaf': [1, 2, 4]
 }
+
+# our_forest_grid = None
 
 our_forest_grid = {
-    'n_estimators': [50, 100],
-    'max_depth': [None, 10, 20],
-    'min_samples_split': [2, 5],
-    'min_samples_leaf': [1],
-    'max_features': [None, 'sqrt', 'log2'],
-    'bootstrap': [True, False],
-    'random_state': [42],
+    'n_estimators': [10, 15, 20],
+    # 'max_depth': [10],
+    # 'min_samples_split': [5],
+    # 'min_samples_leaf': [1],
+    # 'max_features': ['log2'],
+    # 'bootstrap': [True],
+    # 'random_state': [42],
 }
 
-sklearn_tree_grid = {
-    'min_samples_split': [2, 5, 10],
-    'max_depth': [None, 5, 10, 20],
-    'min_samples_leaf': [1, 2, 4]
-}
+sklearn_tree_grid = None
 
-sklearn_rf_grid = {
-    'n_estimators': [50, 100],
-    'min_samples_split': [2, 5],
-    'max_depth': [None, 10, 20],
-    'min_samples_leaf': [1, 2]
-}
+sklearn_rf_grid = None
 
-xgb_grid = {
-    'n_estimators': [50, 100],
-    'max_depth': [3, 5, 10],
-    'learning_rate': [0.01, 0.1]
-}
+xgb_grid = None
 
 # estimators and their grids
 estimators = [
-    (our_random_forest(), our_forest_grid, "Our_RandomForest"),
-    (our_regression_tree(), our_tree_grid, "Our_RegressionTree"),
+    (XGBRegressor(), xgb_grid, "XGBoost"),
     (sk.tree.DecisionTreeRegressor(), sklearn_tree_grid, "sklearn_DecisionTree"),
     (sk.ensemble.RandomForestRegressor(), sklearn_rf_grid, "sklearn_RandomForest"),
-    (XGBRegressor(), xgb_grid, "XGBoost"),
+    (our_regression_tree(), our_tree_grid, "Our_RegressionTree"),
+    (our_random_forest(), our_forest_grid, "Our_RandomForest"),
 ]
 
 def load_data(df_path):
@@ -80,23 +72,28 @@ for df_path in df_paths:
         print("-"*50)
         
         inner_cv = KFold(n_splits=5, shuffle=True, random_state=42)
-        outer_cv = KFold(n_splits=5, shuffle=True, random_state=42)
+        outer_cv = KFold(n_splits=3, shuffle=True, random_state=42)
         
-        grid = GridSearchCV(
-            estimator=estimator,
-            param_grid=param_grid,
-            cv=inner_cv,
-            scoring='neg_root_mean_squared_error',
-            return_train_score=True
-        )
+        if param_grid is not None:
+            model = GridSearchCV(
+                estimator=estimator,
+                param_grid=param_grid,
+                cv=inner_cv,
+                scoring='neg_root_mean_squared_error',
+                return_train_score=True
+            )
+        else:
+            model = estimator
         
         # measure CV time and memory
         tracemalloc.start()
         start_time = time.time()
         
-        rmse_scores = cross_val_score(grid, X, y, cv=outer_cv, scoring='neg_root_mean_squared_error')
-        mae_scores = cross_val_score(grid, X, y, cv=outer_cv, scoring='neg_mean_absolute_error')
-        r2_scores = cross_val_score(grid, X, y, cv=outer_cv, scoring='r2')
+        cv_results = cross_validate(
+            model, X, y, cv=outer_cv, 
+            scoring=['neg_root_mean_squared_error', 'neg_mean_absolute_error', 'r2'],
+            return_train_score=False
+        )
         
         cv_time = time.time() - start_time
         current, cv_peak = tracemalloc.get_traced_memory()
@@ -106,7 +103,7 @@ for df_path in df_paths:
         tracemalloc.start()
         train_start = time.time()
         
-        grid.fit(X, y)
+        model.fit(X, y)
         
         train_time = time.time() - train_start
         current, train_peak = tracemalloc.get_traced_memory()
@@ -115,15 +112,19 @@ for df_path in df_paths:
         cv_memory_mb = cv_peak / 1024 / 1024
         train_memory_mb = train_peak / 1024 / 1024
         
-        # calculate metrics
-        rmse = -rmse_scores.mean()
+        # calculate metrics from cross_validate results
+        rmse_scores = -cv_results['test_neg_root_mean_squared_error']
+        mae_scores = -cv_results['test_neg_mean_absolute_error']
+        r2_scores = cv_results['test_r2']
+        
+        rmse = rmse_scores.mean()
         rmse_std = rmse_scores.std()
-        mae = -mae_scores.mean()
+        mae = mae_scores.mean()
         mae_std = mae_scores.std()
         r2 = r2_scores.mean()
         r2_std = r2_scores.std()
         nrmse = rmse / (y.max() - y.min())
-        best_params = grid.best_params_
+        best_params = model.best_params_ if param_grid is not None else "No grid search"
         
         print(f"  RMSE: {rmse:.4f} ± {rmse_std:.4f}")
         print(f"  MAE: {mae:.4f} ± {mae_std:.4f}")
